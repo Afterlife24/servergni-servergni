@@ -516,7 +516,7 @@ let savedOTPS = {};
 const corsOptions = {
     origin: (origin, callback) => {
         const allowedOrigins = [
-            'http://yourfrontenddomain.com',
+            'https://demo-gni.gofastapi.com',
             'https://yourfrontenddomain.com',
             'http://localhost:5173',
             'http://localhost:3000'
