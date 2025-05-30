@@ -516,7 +516,7 @@ let savedOTPS = {};
 const corsOptions = {
     origin: (origin, callback) => {
         const allowedOrigins = [
-            'https://demo-gni.gofastapi.com/',
+            'https://demo-gni.gofastapi.com',
             'https://yourfrontenddomain.com',
             'http://localhost:5173',
             'http://localhost:3000'
@@ -535,12 +535,13 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
-// Database Connection
+// MongoDB Config
 const uri = "mongodb+srv://Dhanush2002:Dhanush2002@cluster0.ool5p.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 let db;
 let client;
 
 async function connectToMongo() {
+    if (db) return db;
     try {
         client = new MongoClient(uri, {
             useNewUrlParser: true,
@@ -550,14 +551,14 @@ async function connectToMongo() {
         await client.connect();
         db = client.db('Dhanush2002');
         console.log('✅ Connected to MongoDB');
-        startServer();
+        return db;
     } catch (err) {
-        console.error('❌ Error connecting to MongoDB:', err);
-        setTimeout(connectToMongo, 3000);
+        console.error('❌ MongoDB connection error:', err);
+        throw err;
     }
 }
 
-// Email Transporter Configuration
+// Email Transporter
 const transporter = nodemailer.createTransport({
     host: "smtpout.secureserver.net",
     port: 465,
@@ -568,33 +569,15 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// Helper function to get database
-const getDatabase = async () => {
-    if (!db) {
-        await connectToMongo();
-    }
-    return db;
-};
-
-// Delayed server start
-// function startServer() {
-//     const PORT = process.env.PORT || 5000;
-//     app.listen(PORT, () => {
-//         console.log(`🚀 Server running on http://localhost:${PORT}`);
-//     });
-// }
-
 // ✅ Check if email already exists
 app.post('/check-email', async (req, res) => {
     try {
         const { email } = req.body;
-        if (!email) {
-            return res.status(400).json({ error: 'Email is required.' });
-        }
+        if (!email) return res.status(400).json({ error: 'Email is required.' });
 
-        const db = await getDatabase();
+        const db = await connectToMongo();
         const existingUser = await db.collection('packageSubmissions').findOne({ email });
-        
+
         return res.status(200).json({
             exists: !!existingUser,
             message: existingUser ? 'Email already subscribed.' : 'Email not found.'
@@ -613,12 +596,12 @@ app.post('/contact', async (req, res) => {
             return res.status(400).json({ error: 'All fields are required.' });
         }
 
-        const db = await getDatabase();
-        const result = await db.collection('contact_details').insertOne({ 
-            name, 
-            email, 
-            message, 
-            createdAt: new Date() 
+        const db = await connectToMongo();
+        const result = await db.collection('contact_details').insertOne({
+            name,
+            email,
+            message,
+            createdAt: new Date()
         });
 
         console.log('✅ Contact saved:', result.insertedId);
@@ -632,12 +615,12 @@ app.post('/contact', async (req, res) => {
 // ✅ Get all contact submissions
 app.get('/contact', async (req, res) => {
     try {
-        const db = await getDatabase();
+        const db = await connectToMongo();
         const entries = await db.collection('contact_details')
             .find()
             .sort({ createdAt: -1 })
             .toArray();
-            
+
         res.status(200).json(entries);
     } catch (error) {
         console.error('❌ Error fetching contacts:', error);
@@ -657,24 +640,24 @@ app.post('/details', async (req, res) => {
             from: 'contact@gniapp.com',
             to: email,
             subject: 'Your Package Confirmation',
-            text: `Hi there,\n\nYou have selected the "${packageType}" package.\n\nThank you for your interest!\n\n- Your Company Name`
+            text: `Hi there,\n\nYou have selected the "${packageType}" package.\n\nThank you for your interest!\n\n- GNI Team`
         };
 
         await transporter.sendMail(mailOptions);
 
-        const db = await getDatabase();
-        const newEntry = { 
-            email, 
-            packageType, 
-            createdAt: new Date() 
+        const db = await connectToMongo();
+        const newEntry = {
+            email,
+            packageType,
+            createdAt: new Date()
         };
-        
+
         await db.collection('packageSubmissions').insertOne(newEntry);
 
-        console.log('✅ Confirmation sent & details saved:', newEntry);
-        res.status(200).json({ 
-            message: 'Email sent and details saved.', 
-            data: newEntry 
+        console.log('✅ Confirmation sent & saved:', newEntry);
+        res.status(200).json({
+            message: 'Email sent and details saved.',
+            data: newEntry
         });
     } catch (error) {
         console.error('❌ Error processing details:', error);
@@ -685,12 +668,12 @@ app.post('/details', async (req, res) => {
 // ✅ Get all package submissions
 app.get('/details', async (req, res) => {
     try {
-        const db = await getDatabase();
+        const db = await connectToMongo();
         const entries = await db.collection('packageSubmissions')
             .find()
             .sort({ createdAt: -1 })
             .toArray();
-            
+
         res.status(200).json(entries);
     } catch (error) {
         console.error('❌ Error in GET /details:', error);
@@ -698,7 +681,7 @@ app.get('/details', async (req, res) => {
     }
 });
 
-// ✅ Send OTP via email
+// ✅ Send OTP
 app.post('/sendotp', (req, res) => {
     try {
         const email = req.body.email;
@@ -715,9 +698,9 @@ app.post('/sendotp', (req, res) => {
             `
         };
 
-        transporter.sendMail(mailOptions, (error, info) => {
+        transporter.sendMail(mailOptions, (error) => {
             if (error) {
-                console.error(`❌ Error sending OTP: ${error}`);
+                console.error(`❌ OTP send error: ${error}`);
                 return res.status(500).send("Couldn't send OTP");
             }
 
@@ -727,7 +710,7 @@ app.post('/sendotp', (req, res) => {
             res.send("Sent OTP");
         });
     } catch (error) {
-        console.error('❌ Error in sendotp:', error);
+        console.error('❌ sendotp error:', error);
         res.status(500).send("Internal server error");
     }
 });
@@ -742,12 +725,10 @@ app.post('/verify', (req, res) => {
             return res.status(400).send("Invalid OTP");
         }
     } catch (error) {
-        console.error('❌ Error in verify:', error);
+        console.error('❌ verify error:', error);
         res.status(500).send("Internal server error");
     }
 });
 
-// Initialize MongoDB connection
-connectToMongo();
-
+// ✅ Serverless Export
 module.exports = app;
