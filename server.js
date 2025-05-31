@@ -11,7 +11,7 @@ const savedOTPS = {};
 const corsOptions = {
     origin: (origin, callback) => {
         const allowedOrigins = [
-            'http://yourfrontenddomain.com',
+            'https://demo-gni.gofastapi.com',
             'https://yourfrontenddomain.com',
             'http://localhost:5173',
             'http://localhost:3000'
@@ -45,10 +45,10 @@ async function connectToMongo() {
         db = client.db('Dhanush2002');
         console.log('✅ Connected to MongoDB');
 
-        const PORT = 5000;
-        app.listen(PORT, () => {
-            console.log(`🚀 Server running on http://localhost:${PORT}`);
-        });
+        // const PORT = 5000;
+        // app.listen(PORT, () => {
+        //     console.log(`🚀 Server running on http://localhost:${PORT}`);
+        // });
     } catch (err) {
         console.error('❌ Error connecting to MongoDB:', err);
         setTimeout(connectToMongo, 3000);
