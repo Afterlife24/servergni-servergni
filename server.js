@@ -429,72 +429,35 @@ app.get('/contact', async (req, res) => {
 
 // ✅ Package details + confirmation email
 app.post('/details', async (req, res) => {
-    const { email, package: packageType } = req.body;
-    if (!email || !packageType) return res.status(400).json({ error: 'Email and package type are required.' });
-
     try {
-        const transporter = nodemailer.createTransport({
-            host: "smtpout.secureserver.net",
-            port: 465,
-            secure: true,
-            auth: {
-                user: "contact@gniapp.com",
-                pass: "@Riosrogers99."
-            }
-        });
-const mailOptions = {
-    from: 'GNI <contact@gniapp.com>',
-    to: email,
-    subject: `Confirmation: ${packageType} Package Selected`,
-    html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-  <div style="background-color: #f0f7ff; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
-    <h2 style="color: #1e3a8a; margin: 0;">Package Selection Confirmation</h2>
-  </div>
-  
-  <div style="padding: 20px; background-color: #ffffff; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
-    <p>Dear Customer,</p>
-    
-    <p>Thank you for selecting our <strong style="color: #1e40af;">${packageType}</strong> package. We appreciate your interest in our services.</p>
-    
-    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin: 15px 0;">
-      <h3 style="color: #1e3a8a; margin-top: 0;">Package Details</h3>
-      <p style="margin: 5px 0;"><span style="color: #64748b;">• Selected Package:</span> <strong>${packageType}</strong></p>
-      <p style="margin: 5px 0;"><span style="color: #64748b;">• Selection Date:</span> ${new Date().toDateString()}</p>
-    </div>
-  </div>
-  
-  <div style="padding: 20px; background-color: #f9fafb; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
-    <h3 style="color: #1e3a8a; margin-top: 0;">Next Steps</h3>
-    <p>Our team will review your selection and contact you if any additional information is required.</p>
-  </div>
-  
-  <div style="padding: 20px; background-color: #eff6ff; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
-    <h3 style="color: #1e3a8a; margin-top: 0;">Support Information</h3>
-    <p>If you have any questions or need to modify your selection, please reply to this email or contact us at <span style="color: #2563eb;">contact@gniapp.com</span>.</p>
-    
-    <p style="margin-top: 20px;">We look forward to serving you.</p>
-    
-    <p style="color: #1e3a8a; font-weight: bold;">Best regards,</p>
-    <p style="font-weight: bold; margin-bottom: 0;">The GNI App Team</p>
-  </div>
-  
-  <div style="text-align: center; margin-top: 20px; color: #64748b; font-size: 12px;">
-    <p>GNI App • Simple, Effective Solutions</p>
-  </div>
-</div>
-    `,
-    text: `[Keep the same plain text version from previous example as fallback]`
-};
+        const { email, package: packageType } = req.body;
+        if (!email || !packageType) {
+            return res.status(400).json({ error: 'Email and package type are required.' });
+        }
+
+        const mailOptions = {
+            from: 'contact@gniapp.com',
+            to: email,
+            subject: 'Your Package Confirmation',
+            text: `Hi there,\n\nYou have selected the "${packageType}" package.\n\nThank you for your interest!\n\n- GNI Team`
+        };
 
         await transporter.sendMail(mailOptions);
 
-        const collection = db.collection('packageSubmissions');
-        const newEntry = { email, packageType, createdAt: new Date() };
-        await collection.insertOne(newEntry);
+        const db = await connectToMongo();
+        const newEntry = {
+            email,
+            packageType,
+            createdAt: new Date()
+        };
 
-        console.log('✅ Confirmation sent & details saved:', newEntry);
-        res.status(200).json({ message: 'Email sent and details saved.', data: newEntry });
+        await db.collection('packageSubmissions').insertOne(newEntry);
+
+        console.log('✅ Confirmation sent & saved:', newEntry);
+        res.status(200).json({
+            message: 'Email sent and details saved.',
+            data: newEntry
+        });
     } catch (error) {
         console.error('❌ Error processing details:', error);
         res.status(500).json({ error: 'Failed to process your request.' });
@@ -519,71 +482,21 @@ app.get('/details', async (req, res) => {
 
 // ✅ Send OTP
 app.post('/sendotp', (req, res) => {
-    const email = req.body.email;
-    const otp = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join('');
+    try {
+        const email = req.body.email;
+        const otp = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join('');
 
-    const transporter = nodemailer.createTransport({
-        host: "smtpout.secureserver.net",
-        port: 465,
-        secure: true,
-        auth: {
-            user: "contact@gniapp.com",
-            pass: "@Riosrogers99."
-        }
-    });
+        const mailOptions = {
+            from: 'contact@gniapp.com',
+            to: email,
+            subject: "Email Verification Code",
+            html: `
+                <p>Dear User,</p>
+                <p>Your OTP is: <strong>${otp}</strong></p>
+                <p>This code will expire in 60 seconds.</p>
+            `
+        };
 
-    const mailOptions = {
-    from: 'GNI <contact@gniapp.com>',
-    to: email,
-    subject: "GNI App Verification Code",
-    html: `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-  <div style="background-color: #f0f7ff; padding: 20px; border-radius: 8px 8px 0 0; text-align: center;">
-    <h2 style="color: #1e3a8a; margin: 0;">Email Verification</h2>
-  </div>
-  
-  <div style="padding: 20px; background-color: #ffffff; border-left: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb;">
-    <p>Dear User,</p>
-    
-    <p>Please use the following verification code to complete your authentication:</p>
-    
-    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin: 20px 0; text-align: center;">
-      <h3 style="color: #1e3a8a; margin-top: 0; margin-bottom: 10px;">Your Verification Code</h3>
-      <div style="font-size: 24px; font-weight: bold; letter-spacing: 2px; color: #1e40af; margin: 15px 0;">${otp}</div>
-      <p style="color: #64748b; font-size: 14px; margin-bottom: 0;">This code will expire in 10 minutes</p>
-    </div>
-    
-    <p>For security reasons, please do not share this code with anyone.</p>
-  </div>
-  
-  <div style="padding: 20px; background-color: #f9fafb; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb; border-top: none;">
-    <h3 style="color: #1e3a8a; margin-top: 0;">Need Help?</h3>
-    <p>If you didn't request this code, please ignore this email or contact support at <span style="color: #2563eb;">contact@gniapp.com</span>.</p>
-  </div>
-  
-  <div style="text-align: center; margin-top: 20px; color: #64748b; font-size: 12px;">
-    <p>GNI App • Secure Authentication</p>
-  </div>
-</div>
-    `,
-    text: `
-GNI App - Email Verification
-
-Dear User,
-
-Your verification code is: ${otp}
-
-This code will expire in 60 seconds.
-
-For security reasons, please do not share this code with anyone.
-
-If you didn't request this code, please ignore this email or contact support at contact@gniapp.com.
-
---
-GNI App
-Secure Authentication
-`.trim()
-};
         transporter.sendMail(mailOptions, (error) => {
             if (error) {
                 console.error(`❌ OTP send error: ${error}`);
