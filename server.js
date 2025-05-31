@@ -305,23 +305,44 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const nodemailer = require('nodemailer');
 const { MongoClient } = require('mongodb');
+const nodemailer = require('nodemailer');
 
 const app = express();
-const savedOTPS = {};
+let savedOTPS = {};
 
-// Use default CORS middleware (allows all origins)
-app.use(cors());
+// Middleware Configuration
+const corsOptions = {
+    origin: (origin, callback) => {
+        const allowedOrigins = [
+            'https://demo-gni.gofastapi.com',
+            'https://yourfrontenddomain.com',
+            'http://localhost:5173',
+            'http://localhost:3000'
+        ];
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
-// MongoDB connection
+// MongoDB Config
 const uri = "mongodb+srv://Dhanush2002:Dhanush2002@cluster0.ool5p.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 let db;
+let client;
 
 async function connectToMongo() {
+    if (db) return db;
     try {
-        const client = new MongoClient(uri, {
+        client = new MongoClient(uri, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
             serverSelectionTimeoutMS: 5000,
@@ -329,26 +350,33 @@ async function connectToMongo() {
         await client.connect();
         db = client.db('Dhanush2002');
         console.log('✅ Connected to MongoDB');
-
-        // const PORT = 5000;
-        // app.listen(PORT, () => {
-        //     console.log(`🚀 Server running on http://localhost:${PORT}`);
-        // });
+        return db;
     } catch (err) {
-        console.error('❌ Error connecting to MongoDB:', err);
-        setTimeout(connectToMongo, 3000);
+        console.error('❌ MongoDB connection error:', err);
+        throw err;
     }
 }
-connectToMongo();
+
+// Email Transporter
+const transporter = nodemailer.createTransport({
+    host: "smtpout.secureserver.net",
+    port: 465,
+    secure: true,
+    auth: {
+        user: "contact@gniapp.com",
+        pass: "@Riosrogers99."
+    }
+});
 
 // ✅ Check if email already exists
 app.post('/check-email', async (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email is required.' });
-
     try {
-        const collection = db.collection('packageSubmissions');
-        const existingUser = await collection.findOne({ email });
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ error: 'Email is required.' });
+
+        const db = await connectToMongo();
+        const existingUser = await db.collection('packageSubmissions').findOne({ email });
+
         return res.status(200).json({
             exists: !!existingUser,
             message: existingUser ? 'Email already subscribed.' : 'Email not found.'
@@ -361,13 +389,20 @@ app.post('/check-email', async (req, res) => {
 
 // ✅ Contact form submission
 app.post('/contact', async (req, res) => {
-    const { name, email, message } = req.body;
-    if (!name || !email || !message) return res.status(400).json({ error: 'All fields are required.' });
-
     try {
-        if (!db) return res.status(503).json({ error: 'Database not connected.' });
-        const collection = db.collection('contact_details');
-        const result = await collection.insertOne({ name, email, message, createdAt: new Date() });
+        const { name, email, message } = req.body;
+        if (!name || !email || !message) {
+            return res.status(400).json({ error: 'All fields are required.' });
+        }
+
+        const db = await connectToMongo();
+        const result = await db.collection('contact_details').insertOne({
+            name,
+            email,
+            message,
+            createdAt: new Date()
+        });
+
         console.log('✅ Contact saved:', result.insertedId);
         res.status(200).json({ success: true });
     } catch (error) {
@@ -379,8 +414,12 @@ app.post('/contact', async (req, res) => {
 // ✅ Get all contact submissions
 app.get('/contact', async (req, res) => {
     try {
-        if (!db) return res.status(503).json({ error: 'Database not connected' });
-        const entries = await db.collection('contact_details').find().sort({ createdAt: -1 }).toArray();
+        const db = await connectToMongo();
+        const entries = await db.collection('contact_details')
+            .find()
+            .sort({ createdAt: -1 })
+            .toArray();
+
         res.status(200).json(entries);
     } catch (error) {
         console.error('❌ Error fetching contacts:', error);
@@ -465,7 +504,12 @@ const mailOptions = {
 // ✅ Get all package submissions
 app.get('/details', async (req, res) => {
     try {
-        const entries = await db.collection('packageSubmissions').find().sort({ createdAt: -1 }).toArray();
+        const db = await connectToMongo();
+        const entries = await db.collection('packageSubmissions')
+            .find()
+            .sort({ createdAt: -1 })
+            .toArray();
+
         res.status(200).json(entries);
     } catch (error) {
         console.error('❌ Error in GET /details:', error);
@@ -473,7 +517,7 @@ app.get('/details', async (req, res) => {
     }
 });
 
-// ✅ Send OTP via email
+// ✅ Send OTP
 app.post('/sendotp', (req, res) => {
     const email = req.body.email;
     const otp = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join('');
@@ -540,28 +584,37 @@ GNI App
 Secure Authentication
 `.trim()
 };
+        transporter.sendMail(mailOptions, (error) => {
+            if (error) {
+                console.error(`❌ OTP send error: ${error}`);
+                return res.status(500).send("Couldn't send OTP");
+            }
 
-    transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-            console.error(`❌ Error sending OTP: ${error}`);
-            return res.status(500).send("Couldn't send OTP");
-        }
-
-        savedOTPS[email] = otp;
-        setTimeout(() => delete savedOTPS[email], 600000);
-        console.log(`✅ OTP sent to ${email}: ${otp}`);
-        res.send("Sent OTP");
-    });
+            savedOTPS[email] = otp;
+            setTimeout(() => delete savedOTPS[email], 60000);
+            console.log(`✅ OTP sent to ${email}: ${otp}`);
+            res.send("Sent OTP");
+        });
+    } catch (error) {
+        console.error('❌ sendotp error:', error);
+        res.status(500).send("Internal server error");
+    }
 });
 
 // ✅ Verify OTP
 app.post('/verify', (req, res) => {
-    const { email, otp } = req.body;
-    if (savedOTPS[email] === otp) {
-        return res.send("Verified");
-    } else {
-        return res.status(400).send("Invalid OTP");
+    try {
+        const { email, otp } = req.body;
+        if (savedOTPS[email] === otp) {
+            return res.send("Verified");
+        } else {
+            return res.status(400).send("Invalid OTP");
+        }
+    } catch (error) {
+        console.error('❌ verify error:', error);
+        res.status(500).send("Internal server error");
     }
 });
 
+// ✅ Serverless Export
 module.exports = app;
