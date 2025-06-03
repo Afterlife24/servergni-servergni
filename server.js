@@ -316,7 +316,7 @@ const corsOptions = {
     origin: (origin, callback) => {
         const allowedOrigins = [
             'https://demo-gni.gofastapi.com',
-            'https://yourfrontenddomain.com',
+            'https://www.gniapp.com',
             'http://localhost:5173',
             'http://localhost:3000'
         ];
