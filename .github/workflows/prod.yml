@@ -1,4 +1,4 @@
-name: Deploy to AWS Lambda
+name: Deploy to AWS
 
 on:
   push:
@@ -13,15 +13,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
           node-version: 18
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install  
 
-      - name: Install Serverless Framework
+      - name: Install Serverless CLI
         run: npm install -g serverless@3.38.0
 
       - name: Deploy to AWS
