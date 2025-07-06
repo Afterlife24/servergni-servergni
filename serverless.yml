@@ -1,6 +1,6 @@
 service: gniapp-api
 
-frameworkVersion: '3.38.0'
+frameworkVersion: '3'
 
 provider:
   name: aws
