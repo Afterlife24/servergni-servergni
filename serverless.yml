@@ -29,8 +29,8 @@ functions:
           path: /{proxy+}
           method: '*'
 
-plugins:
-  - serverless-offline
+# plugins:
+#   - serverless-offline
 
 package:
   exclude:
