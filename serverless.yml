@@ -13,6 +13,7 @@ provider:
       allowedOrigins:
         - https://www.gniapp.com
         - https://demo-gni.gofastapi.com
+        - https://www.gni-dashboard.afterlife.org.in
       allowedMethods:
         - GET
         - POST
